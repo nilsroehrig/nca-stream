@@ -3,26 +3,27 @@
 	import { EventSourceParserStream } from 'eventsource-parser/stream';
 
 	let messages = $state(new Array<ChatMessage>());
-		let messageInput = $state('');
+	let messageInput = $state('');
 
 	async function onsubmit(event: SubmitEvent) {
 		event.preventDefault();
+
+		const userMessage = new ChatMessage('user', messageInput);
+		messages.push(userMessage);
+
+		messageInput = '';
 
 		const response = await fetch('/api/stream', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify({ input: messageInput })
+			body: JSON.stringify({ messages })
 		});
 
 		if (!response.ok) {
 			return;
 		}
-
-		const userMessage = new ChatMessage('user', messageInput);
-
-		messages.push(userMessage);
 
 		const resultStream = response
 			.body!.pipeThrough(new TextDecoderStream())
@@ -58,7 +59,12 @@
 	</dl>
 
 	<form method="post" role="group" {onsubmit}>
-		<input type="text" name="input" placeholder="Your topic, question, command..." bind:value={messageInput} />
+		<input
+			type="text"
+			name="input"
+			placeholder="Your topic, question, command..."
+			bind:value={messageInput}
+		/>
 		<button type="submit">Send</button>
 	</form>
 </article>

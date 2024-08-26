@@ -2,38 +2,21 @@ import { EventSourceParserStream } from 'eventsource-parser/stream';
 
 export async function POST({ request, platform }) {
 	const body = await request.json();
-	const input = body.input ?? null;
+	const messages = body.messages ?? null;
 
-	if (typeof input != 'string' || input.length == 0) {
-		return new Response(
-			JSON.stringify({
-				errors: {
-					input: 'Invalid input'
-				}
-			}),
-			{
-				status: 400
-			}
-		);
+	if (!messages) {
+		return new Response('No messages provided', { status: 400 });
 	}
 
-	const userMessage = {
-		role: 'user',
-		content: input
-	};
-
 	const resultStream = await platform!.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-		messages: [userMessage],
+		messages,
 		stream: true
 	});
 
-	return new Response(
-		resultStream,
-		{
-			headers: {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache'
-			}
+	return new Response(resultStream, {
+		headers: {
+			'Content-Type': 'text/event-stream',
+			'Cache-Control': 'no-cache'
 		}
-	);
+	});
 }
