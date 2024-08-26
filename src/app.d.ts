@@ -3,7 +3,9 @@
 declare global {
 	namespace App {
         interface Platform {
-            env: Env
+            env: {
+                AI: Ai
+            }
             cf: CfProperties
             ctx: ExecutionContext
         }
