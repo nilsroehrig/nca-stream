@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { ChatMessage } from '$lib/ChatMessage.svelte';
 	import { EventSourceParserStream } from 'eventsource-parser/stream';
 
-	let messages =$state([]);
-	let streamedMessage = $state('');
+	let messages = $state(new Array<ChatMessage>());
 
 	async function onsubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -18,30 +18,33 @@
 			body: JSON.stringify({ input })
 		});
 
-    if(!response.ok) {
-      return;
-    }
+		if (!response.ok) {
+			return;
+		}
 
-    messages = [...messages, { role: 'user', content: input }];
+		const userMessage = new ChatMessage('user', String(input));
+
+		messages.push(userMessage);
 
 		const resultStream = response
 			.body!.pipeThrough(new TextDecoderStream())
 			.pipeThrough(new EventSourceParserStream());
 		const reader = resultStream.getReader();
 
+		const assistantMessage = new ChatMessage('assistant', '');
+		messages.push(assistantMessage);
+
 		let done, value;
 		while (!done) {
 			({ value, done } = await reader.read());
 
 			if (value!.data === '[DONE]') {
-        messages = [...messages, { role: 'assistant', content: streamedMessage }];
-        streamedMessage = '';
 				return;
 			}
 
 			const { response } = JSON.parse(value!.data);
 
-			streamedMessage += response;
+			assistantMessage.content += response;
 		}
 	}
 </script>
@@ -54,12 +57,6 @@
 				<dd>{message.content}</dd>
 			</div>
 		{/each}
-		{#if streamedMessage}
-			<div class="assistant">
-				<dt>assistant</dt>
-				<dd>{streamedMessage}</dd>
-			</div>
-		{/if}
 	</dl>
 
 	<form method="post" role="group" {onsubmit}>
