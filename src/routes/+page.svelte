@@ -1,20 +1,68 @@
-<script>
-	let { form } = $props();
+<script lang="ts">
+	import { EventSourceParserStream } from 'eventsource-parser/stream';
+
+	let messages =$state([]);
+	let streamedMessage = $state('');
+
+	async function onsubmit(event: SubmitEvent) {
+		event.preventDefault();
+
+		const form = new FormData(event.target);
+		const input = form.get('input');
+
+		const response = await fetch('/api/stream', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ input })
+		});
+
+    if(!response.ok) {
+      return;
+    }
+
+    messages = [...messages, { role: 'user', content: input }];
+
+		const resultStream = response
+			.body!.pipeThrough(new TextDecoderStream())
+			.pipeThrough(new EventSourceParserStream());
+		const reader = resultStream.getReader();
+
+		let done, value;
+		while (!done) {
+			({ value, done } = await reader.read());
+
+			if (value!.data === '[DONE]') {
+        messages = [...messages, { role: 'assistant', content: streamedMessage }];
+        streamedMessage = '';
+				return;
+			}
+
+			const { response } = JSON.parse(value!.data);
+
+			streamedMessage += response;
+		}
+	}
 </script>
 
 <article>
-	{#if form && form.messages}
-		<dl>
-			{#each form.messages as message}
-				<div class={message.role}>
-					<dt>{message.role}</dt>
-					<dd>{message.content}</dd>
-				</div>
-			{/each}
-		</dl>
-	{/if}
+	<dl>
+		{#each messages as message}
+			<div class={message.role}>
+				<dt>{message.role}</dt>
+				<dd>{message.content}</dd>
+			</div>
+		{/each}
+		{#if streamedMessage}
+			<div class="assistant">
+				<dt>assistant</dt>
+				<dd>{streamedMessage}</dd>
+			</div>
+		{/if}
+	</dl>
 
-	<form method="post" role="group">
+	<form method="post" role="group" {onsubmit}>
 		<input type="text" name="input" placeholder="Your topic, question, command..." />
 		<button type="submit">Send</button>
 	</form>
@@ -27,26 +75,26 @@
 		gap: 1rem;
 	}
 
-  dl > div {
-    width: 80%;
-  }
+	dl > div {
+		width: 80%;
+	}
 
-  dt {
-    font-weight: bold;
-  }
+	dt {
+		font-weight: bold;
+	}
 
-  dd {
-    margin-left: 0;
-  }
+	dd {
+		margin-left: 0;
+	}
 
-  .assistant {
-    margin-right: auto;
-  }
+	.assistant {
+		margin-right: auto;
+	}
 
-  .user {
-    padding: var(--pico-spacing);
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: var(--pico-border-radius);
-    margin-left: auto;
-  }
+	.user {
+		padding: var(--pico-spacing);
+		background: rgba(0, 0, 0, 0.1);
+		border-radius: var(--pico-border-radius);
+		margin-left: auto;
+	}
 </style>
